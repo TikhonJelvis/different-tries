@@ -4,5 +4,5 @@
 
 # Haskell and Cabal
 .cabal-sandbox
-.cabal-sandbox.config
+cabal.sandbox.config
 dist
