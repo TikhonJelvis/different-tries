@@ -71,3 +71,6 @@ insert k v trie@(Branch prefix control l r)
                                    (branch prefix control (insert k v l) r)
                                    (branch prefix control l (insert k v r))
   | otherwise                    = combine k (Leaf k v) prefix trie
+
+fromList :: Monoid a => [(Int, a)] -> Trie a
+fromList = foldr (\ (k, v) t -> insert k v t) Empty
