@@ -8,7 +8,7 @@ import           Prelude   hiding (lookup)
 import           Data.Bits
 import           Data.Monoid
 
--- | A PATRICIA trie that inspects and @Int@ bit by bit.
+-- | A PATRICIA trie that inspects an @Int@ key bit by bit.
 data Trie a = Empty
             | Leaf !Int a
               -- ^ Each leaf stores the whole key along with the value
