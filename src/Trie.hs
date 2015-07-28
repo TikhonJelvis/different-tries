@@ -74,3 +74,18 @@ insert k v trie@(Branch prefix control l r)
 
 fromList :: Monoid a => [(Int, a)] -> Trie a
 fromList = foldr (\ (k, v) t -> insert k v t) Empty
+
+merge :: Monoid a => Trie a -> Trie a -> Trie a
+merge Empty t      = t
+merge t Empty      = t
+merge (Leaf k v) t = insert k v t
+merge t (Leaf k v) = insert k v t
+merge t₁@(Branch p₁ c₁ l₁ r₁) t₂@(Branch p₂ c₂ l₂ r₂)
+  | p₁ == p₂ && c₁ == c₂ = branch p₁ c₁ (merge l₁ l₂) (merge r₁ r₂)
+  | c₁ < c₂ && getPrefix p₂ c₁ == p₁ = checkBit p₂ c₁
+                                     (branch p₁ c₁ (merge l₁ t₂) r₁)
+                                     (branch p₁ c₁ l₁ (merge r₁ t₂))
+  | c₂ < c₁ && getPrefix p₁ c₂ == p₂ = checkBit p₁ c₂
+                                     (branch p₂ c₂ (merge t₁ l₂) r₂)
+                                     (branch p₂ c₂ l₂ (merge t₁ r₂))
+  | otherwise                      = combine p₁ t₁ p₂ t₂
