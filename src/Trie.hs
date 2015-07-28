@@ -53,20 +53,21 @@ lookup k (Branch prefix control l r)
   | getPrefix k control /= prefix = Nothing
   | otherwise                    = lookup k (checkBit k control l r)
 
+-- | Combines two trees with two different prefixes.
+combine :: Int -> Trie a -> Int -> Trie a -> Trie a
+combine pl l pr r = checkBit pl control
+                    (branch prefix control l r)
+                    (branch prefix control r l)
+  where control = firstDiff pl pr
+        prefix  = getPrefix pl control
+
 insert :: Monoid a => Int -> a -> Trie a -> Trie a
 insert k v Empty        = Leaf k v
 insert k v (Leaf k' v')
-  | k == k'            = Leaf k (v <> v')
-  | k .&. control == 0 = branch prefix control (Leaf k v) (Leaf k' v')
-  | otherwise         = branch prefix control (Leaf k' v') (Leaf k v)
-  where control = firstDiff k k'
-        prefix  = getPrefix k control
+  | k == k'    = Leaf k (v <> v')
+  | otherwise = combine k (Leaf k v) k' (Leaf k' v')
 insert k v trie@(Branch prefix control l r)
   | getPrefix k control == prefix = checkBit k control
                                    (branch prefix control (insert k v l) r)
                                    (branch prefix control l (insert k v r))
-  | otherwise                    = checkBit k control'
-                                   (branch prefix' control' (Leaf k v) trie)
-                                   (branch prefix' control' trie (Leaf k v))
-  where control' = firstDiff k prefix
-        prefix'  = getPrefix k control'
+  | otherwise                    = combine k (Leaf k v) prefix trie
