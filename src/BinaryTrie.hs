@@ -1,5 +1,4 @@
 {-# LANGUAGE MonadComprehensions #-}
-{-# LANGUAGE PatternSynonyms     #-}
 -- | A big-endian binary PATRICIA trie with fixed-size ints as keys.
 module BinaryTrie where
 
@@ -21,7 +20,7 @@ data Trie a = Empty
 width :: Int
 width = finiteBitSize (0 :: Int)
 
--- | Returns the key masked to every bit before (ie less significant)
+-- | Returns the key masked to every bit before (ie more significant)
 -- than the control bit.
 getPrefix :: Int -> Int -> Int
 getPrefix key control = (key .|. (control - 1)) .&. complement control
