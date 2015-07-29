@@ -1,6 +1,6 @@
 {-# LANGUAGE MonadComprehensions #-}
 {-# LANGUAGE PatternSynonyms     #-}
--- | A binary PATRICIA trie with fixed-size ints as keys.
+-- | A big-endian binary PATRICIA trie with fixed-size ints as keys.
 module BinaryTrie where
 
 import           Prelude   hiding (lookup)
@@ -24,11 +24,7 @@ width = finiteBitSize (0 :: Int)
 -- | Returns the key masked to every bit before (ie less significant)
 -- than the control bit.
 getPrefix :: Int -> Int -> Int
-getPrefix key control = key .&. (control - 1)
-
--- | Returns the bit at which the two numbers first differ.
-firstDiff :: Int -> Int -> Int
-firstDiff a b = let x = a `xor` b in x .&. (-x)
+getPrefix key control = (key .|. (control - 1)) .&. complement control
 
 -- | A smart consructor for branches of the tree tha avoids creating
 -- unnecessar nodes and puts children in the correct order.
@@ -37,6 +33,16 @@ branch _ _ Empty Empty      = Empty
 branch _ _ Empty (Leaf k v) = Leaf k v
 branch _ _ (Leaf k v) Empty = Leaf k v
 branch prefix control l r   = Branch prefix control l r
+
+                              -- TODO: Replace with efficient version with 7.10
+countLeadingZeros :: Int -> Int
+countLeadingZeros n = (width - 1) - go (width - 1)
+  where go i | i < 0       = i
+             | testBit n i = i
+             | otherwise   = go (i - 1)
+
+highestBitSet :: Int -> Int
+highestBitSet n = bit $ width - countLeadingZeros n - 1
 
 -- | Branches on whether the bit of the key at the given control bit
 -- is 0 (left) or 1 (right).
@@ -58,7 +64,7 @@ combine :: Int -> Trie a -> Int -> Trie a -> Trie a
 combine pl l pr r = checkBit pl control
                     (branch prefix control l r)
                     (branch prefix control r l)
-  where control = firstDiff pl pr
+  where control = highestBitSet (pl `xor` pr)
         prefix  = getPrefix pl control
 
 insert :: Monoid a => Int -> a -> Trie a -> Trie a
@@ -75,6 +81,11 @@ insert k v trie@(Branch prefix control l r)
 fromList :: Monoid a => [(Int, a)] -> Trie a
 fromList = foldr (\ (k, v) t -> insert k v t) Empty
 
+keys :: Trie a -> [Int]
+keys Empty = []
+keys (Leaf k _) = [k]
+keys (Branch _ _ l r) = keys l ++ keys r
+
 merge :: Monoid a => Trie a -> Trie a -> Trie a
 merge Empty t      = t
 merge t Empty      = t
@@ -82,10 +93,21 @@ merge (Leaf k v) t = insert k v t
 merge t (Leaf k v) = insert k v t
 merge t₁@(Branch p₁ c₁ l₁ r₁) t₂@(Branch p₂ c₂ l₂ r₂)
   | p₁ == p₂ && c₁ == c₂ = branch p₁ c₁ (merge l₁ l₂) (merge r₁ r₂)
-  | c₁ < c₂ && getPrefix p₂ c₁ == p₁ = checkBit p₂ c₁
+  | c₁ > c₂ && getPrefix p₂ c₁ == p₁ = checkBit p₂ c₁
                                      (branch p₁ c₁ (merge l₁ t₂) r₁)
                                      (branch p₁ c₁ l₁ (merge r₁ t₂))
-  | c₂ < c₁ && getPrefix p₁ c₂ == p₂ = checkBit p₁ c₂
+  | c₂ > c₁ && getPrefix p₁ c₂ == p₂ = checkBit p₁ c₂
                                      (branch p₂ c₂ (merge t₁ l₂) r₂)
                                      (branch p₂ c₂ l₂ (merge t₁ r₂))
   | otherwise                      = combine p₁ t₁ p₂ t₂
+
+delete :: Int -> Trie a -> Trie a
+delete k Empty = Empty
+delete k (Leaf k' v)
+  | k == k'    = Empty
+  | otherwise = Leaf k' v
+delete k trie@(Branch prefix control l r)
+  | getPrefix k control == prefix = checkBit k control
+                                   (branch prefix control (delete k l) r)
+                                   (branch prefix control l (delete k r))
+  | otherwise                    = trie
