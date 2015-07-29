@@ -111,3 +111,21 @@ delete k trie@(Branch prefix control l r)
                                    (branch prefix control (delete k l) r)
                                    (branch prefix control l (delete k r))
   | otherwise                    = trie
+
+intersect :: Monoid a => Trie a -> Trie a -> Trie a
+intersect Empty _ = Empty
+intersect _ Empty = Empty
+intersect (Leaf k v) (Leaf k' v')
+  | k == k'    = Leaf k (v <> v')
+  | otherwise = Empty
+intersect leaf@(Leaf k v) (Branch prefix control l r)
+  | getPrefix k control == prefix = checkBit k control (intersect leaf l) (intersect leaf r)
+  | otherwise                    = Empty
+intersect (Branch prefix control l r) leaf@(Leaf k v)
+  | getPrefix k control == prefix = checkBit k control (intersect l leaf) (intersect r leaf)
+  | otherwise                    = Empty
+intersect left@(Branch p₁ c₁ l₁ r₁) right@(Branch p₂ c₂ l₂ r₂)
+  | c₁ == c₂ && p₁ == p₂              = branch p₁ c₁ (intersect l₁ l₂) (intersect r₁ r₂)
+  | c₁ > c₂ && getPrefix p₂ c₁ == p₁ = checkBit p₂ c₁ (intersect l₁ right) (intersect r₁ right)
+  | c₁ < c₂ && getPrefix p₁ c₂ == p₂ = checkBit p₁ c₂ (intersect left l₂) (intersect right r₂)
+  | otherwise                      = Empty
