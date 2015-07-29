@@ -16,7 +16,7 @@ extra-source-files:  README.md, README.md~
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Trie
+  exposed-modules:     BinaryTrie
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.7 && <4.8

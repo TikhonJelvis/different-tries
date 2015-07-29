@@ -1,7 +1,7 @@
 {-# LANGUAGE MonadComprehensions #-}
 {-# LANGUAGE PatternSynonyms     #-}
--- | A PATRICIA binary trie with fixed-size ints as keys.
-module Trie where
+-- | A binary PATRICIA trie with fixed-size ints as keys.
+module BinaryTrie where
 
 import           Prelude   hiding (lookup)
 
