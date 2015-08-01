@@ -30,10 +30,10 @@ width = finiteBitSize (0 :: Int)
 -- | Returns the key masked to every bit before (ie more significant)
 -- than the control bit.
 getPrefix :: Int -> Int -> Int
-getPrefix key control = (key .|. (control - 1)) .&. complement control
+getPrefix key control = key .&. complement ((control `shiftL` 1) - 1)
 
 -- | A smart consructor for branches of the tree tha avoids creating
--- unnecessar nodes and puts children in the correct order.
+-- unnecessary nodes and puts children in the correct order.
 branch :: Int -> Int -> Trie a -> Trie a -> Trie a
 branch _ _ Empty Empty      = Empty
 branch _ _ Empty (Leaf k v) = Leaf k v
@@ -135,3 +135,7 @@ intersect left@(Branch p₁ c₁ l₁ r₁) right@(Branch p₂ c₂ l₂ r₂)
   | c₁ > c₂ && getPrefix p₂ c₁ == p₁ = checkBit p₂ c₁ (intersect l₁ right) (intersect r₁ right)
   | c₁ < c₂ && getPrefix p₁ c₂ == p₂ = checkBit p₁ c₂ (intersect left l₂) (intersect right r₂)
   | otherwise                      = Empty
+
+-- Utility functions
+b :: Int -> IO ()
+b i = printf "%b\n" i
