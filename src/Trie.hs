@@ -1,7 +1,8 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE KindSignatures      #-}
-{-# LANGUAGE MonadComprehensions #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE KindSignatures             #-}
+{-# LANGUAGE MonadComprehensions        #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
 -- | A module for PATRICIA tries with configurable spans.
 module Trie where
 
@@ -26,13 +27,14 @@ data Trie (s :: Nat) a = Empty
                         -- the value for that key.
                       | Branch !Int !Int !(Vector (Trie s a))
                         -- ^ Each branch stores \(2^s\) children along
-                        -- with a prefix and the level in the trie.
+                        -- with a prefix and the index of the leading
+                        -- bit branched on.
                       deriving (Eq, Ord)
 
 instance Show a => Show (Trie s a) where
   show Empty                          = "Empty"
   show (Leaf k v)                     = printf "Leaf %d %s" k (show v)
-  show (Branch prefix level children) = printf "Branch 0b%b %d %s" prefix level (show children)
+  show (Branch prefix index children) = printf "Branch 0b%b %d %s" prefix index (show children)
 
 isEmpty :: Trie s a -> Bool
 isEmpty Empty = True
@@ -51,29 +53,34 @@ width = finiteBitSize (0 :: Int)
 
          -- TODO: There's probably a better way to do this…
 -- | Masks out everything after and including the section under the control masked
--- for the given level.
+-- for the given branched bit.
 --
 -- Example:
 -- @
--- getPrefix 3 0b111111111 0b111000 = 0b111000000
+-- getPrefix 3 0b111111111 6 = 0b111000000
 -- @
 getPrefix :: Int -> Int -> Int -> Int
-getPrefix span key level = key .&. ((-1) `shiftL` (span * level'))
-  where level' = (width `div` span) - level - 1
+getPrefix span key index = key .&. ((bit span - 1) `shiftL` index)
+
+-- | Get the chunk of the key for the given bit index, shifted all the
+-- way right.
+getChunk :: Int -> Int -> Int -> Int
+getChunk span key index = (key `shiftR` (index - span)) .&. (bit span - 1)
 
 -- | A "smart constructor" that consolidates paths that either end or
 -- don't branch (ie have exactly one child leaf).
 branch :: Int -> Int -> Vector (Trie s a) -> Trie s a
-branch prefix level children
+branch prefix index children
   | Vector.all isEmpty children = Empty
   | [leaf] <- oneLeaf            = leaf
-  | otherwise                   = Branch prefix level children
+  | otherwise                   = Branch prefix index children
   where oneLeaf = [leaf |
                    Vector.length filtered == 1,
                    let leaf = Vector.unsafeHead filtered,
                    isLeaf leaf]
         filtered = Vector.filter (not . isEmpty) children
 
+-- | A vector of size 2^s filled with 'Empty' tries.
 empties :: forall s a. KnownNat s => Vector (Trie s a)
 empties = Vector.replicate (2 ^ span (undefined :: Trie s a)) Empty
 
@@ -87,37 +94,39 @@ countLeadingZeros n = (width - 1) - go (width - 1)
 highestBitSet :: Int -> Int
 highestBitSet n = bit $ width - countLeadingZeros n - 1
 
-mask :: Int -> Int -> Int
-mask span level = (bit span - 1) `shiftL` (level' * span)
-  where level' = width `div` span - level
-
-getIndex :: Int -> Int -> Int -> Int
-getIndex span key level = (mask span level .&. key) `shiftR` (level' * span)
-  where level' = width `div` span - level
-
 lookup :: KnownNat s => Int -> Trie s a -> Maybe a
 lookup _ Empty       = Nothing
 lookup k (Leaf k' v) = [v | k == k']
-lookup k t@(Branch prefix level children)
-  | getPrefix (span t) k level /= prefix = Nothing
-  | otherwise                           = lookup k (children ! index)
-  where index = getIndex (span t) k level
+lookup k t@(Branch prefix index children)
+  | getPrefix (span t) k index /= prefix = Nothing
+  | otherwise                           = lookup k (children ! chunk)
+  where chunk = getChunk (span t) k index
+
+-- | A helper function that combines two trees with two *different*,
+-- *non-overlapping* prefixes. Make sure the prefixes don't overlap
+-- before using this function!
+combine :: KnownNat s => Int -> Trie s a -> Int -> Trie s a -> Trie s a
+combine p₁ t₁ p₂ t₂ = branch prefix index newChildren
+  where newChildren = empties // [(getChunk s p₁ index, t₁), (getChunk s p₂ index, t₂)]
+        index = countLeadingZeros (p₁ `xor` p₂) + 1
+        prefix = getPrefix s p₁ index
+        s = span t₁
 
 insert :: forall s a. (KnownNat s, Monoid a) => Int -> a -> Trie s a -> Trie s a
 insert k v Empty        = Leaf k v
 insert k v t@(Leaf k' v')
   | k == k' = Leaf k (v <> v')
-  | otherwise = branch prefix level newChildren
-  where level = countLeadingZeros (k `xor` k') `div` s + 1
-        newChildren = empties // [(getIndex s k level, Leaf k v),
-                                  (getIndex s k' level, Leaf k' v')]
-        prefix = getPrefix s k level
-        s = span t
-insert k v t@(Branch prefix level children)
-  | getPrefix s k level == prefix = branch prefix level newChildren
-   where newChildren = modify children (getIndex s k level) (insert k v)
-         s = span t
+  | otherwise = combine k (Leaf k v) k' (Leaf k' v')
+insert k v trie@(Branch prefix index children)
+  | getPrefix s k index == prefix = branch prefix index newChildren
+  | otherwise                    = combine k (Leaf k v) prefix trie
+   where newChildren = modify children (getChunk s k index) (insert k v)
+         s = span trie
 
       -- TODO: figure out how to do this properly?
 modify :: Vector a -> Int -> (a -> a) -> Vector a
 modify v i f = v // [(i, f $ v ! i)]
+
+-- Utility functions
+b :: Int -> IO ()
+b i = printf "%b\n" i
