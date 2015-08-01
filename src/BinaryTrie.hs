@@ -7,15 +7,22 @@ import           Prelude   hiding (lookup)
 import           Data.Bits
 import           Data.Monoid
 
+import           Text.Printf
+
 -- | A PATRICIA trie that inspects an @Int@ key bit by bit.
 data Trie a = Empty
             | Leaf !Int a
               -- ^ Each leaf stores the whole key along with the value
               -- for that key.
-            | Branch !Int !Int (Trie a) (Trie a) deriving (Show, Eq, Ord)
+            | Branch !Int !Int (Trie a) (Trie a) deriving (Eq, Ord)
               -- ^ Each branch stores a prefix and a control bit for
               -- the bit it branched on—an @Int@ with just that bit
               -- set.
+
+instance Show a => Show (Trie a) where
+  show Empty                       = "Empty"
+  show (Leaf k v)                  = printf "Leaf %d %s" k (show v)
+  show (Branch prefix control l r) = printf "(Branch %b %b %s %s)" prefix control (show l) (show r)
 
 width :: Int
 width = finiteBitSize (0 :: Int)
