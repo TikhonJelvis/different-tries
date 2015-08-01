@@ -107,7 +107,8 @@ lookup k t@(Branch prefix index children)
 combine :: KnownNat s => Int -> Trie s a -> Int -> Trie s a -> Trie s a
 combine p₁ t₁ p₂ t₂ = branch prefix index newChildren
   where newChildren = empties // [(getChunk s p₁ index, t₁), (getChunk s p₂ index, t₂)]
-        index = countLeadingZeros (p₁ `xor` p₂) + 1
+        index = round $ width - countLeadingZeros (p₁ `xor` p₂)
+        round x = x `div` s * s
         prefix = getPrefix s p₁ index
         s = span t₁
 
@@ -121,6 +122,9 @@ insert k v trie@(Branch prefix index children)
   | otherwise                    = combine k (Leaf k v) prefix trie
    where newChildren = modify children (getChunk s k index) (insert k v)
          s = span trie
+
+fromList :: (KnownNat s, Monoid a) => [(Int, a)] -> Trie s a
+fromList = foldr (\ (k, v) t -> insert k v t) Empty
 
       -- TODO: figure out how to do this properly?
 modify :: Vector a -> Int -> (a -> a) -> Vector a
