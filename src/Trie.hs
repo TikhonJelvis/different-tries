@@ -52,15 +52,14 @@ width :: Int
 width = finiteBitSize (0 :: Int)
 
          -- TODO: There's probably a better way to do this…
--- | Masks out everything after and including the section under the control masked
--- for the given branched bit.
+-- | Masks out everything after and including the bit at the given index.
 --
 -- Example:
 -- @
 -- getPrefix 3 0b111111111 6 = 0b111000000
 -- @
 getPrefix :: Int -> Int -> Int -> Int
-getPrefix span key index = key .&. ((bit span - 1) `shiftL` index)
+getPrefix span key index = key .&. ((- 1) `shiftL` index)
 
 -- | Get the chunk of the key for the given bit index, shifted all the
 -- way right.
