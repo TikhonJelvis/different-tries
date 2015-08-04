@@ -16,7 +16,7 @@ import           Data.Vector  (Vector, (!), (//))
 import qualified Data.Vector  as Vector
 import           Data.Word    (Word64)
 
-import           GHC.TypeLits
+import GHC.TypeLits
 
 import           Text.Printf (printf)
 
@@ -52,7 +52,7 @@ width :: Int
 width = finiteBitSize (0 :: Int)
 
          -- TODO: There's probably a better way to do this…
--- | Masks out everything after and including the bit at the given index.
+-- | Masks out everything less significant and including the bit at the given index.
 --
 -- Example:
 -- @
@@ -107,7 +107,7 @@ lookup k t@(Branch prefix index children)
 combine :: KnownNat s => Int -> Trie s a -> Int -> Trie s a -> Trie s a
 combine p₁ t₁ p₂ t₂ = branch prefix index newChildren
   where newChildren = empties // [(getChunk s p₁ index, t₁), (getChunk s p₂ index, t₂)]
-        index = round $ width - countLeadingZeros (p₁ `xor` p₂)
+        index = s + round (width - countLeadingZeros (p₁ `xor` p₂) - 1)
         round x = x `div` s * s
         prefix = getPrefix s p₁ index
         s = span t₁
