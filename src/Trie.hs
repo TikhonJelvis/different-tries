@@ -130,6 +130,28 @@ fromList = foldr (\ (k, v) t -> insert k v t) Empty
 modify :: Vector a -> Int -> (a -> a) -> Vector a
 modify v i f = v // [(i, f $ v ! i)]
 
+keys :: KnownNat s => Trie s a -> [Int]
+keys Empty                 = []
+keys (Leaf k _)            = [k]
+keys (Branch _ _ children) = Vector.toList children >>= keys
+
+                         -- TODO: Figure out ordering in insert case
+merge :: KnownNat s => Monoid a => Trie s a -> Trie s a -> Trie s a
+merge Empty t      = t
+merge t Empty      = t
+merge (Leaf k v) t = insert k v t
+merge t (Leaf k v) = insert k v t
+merge t₁@(Branch p₁ i₁ cs₁) t₂@(Branch p₂ i₂ cs₂)
+  -- prefixes exactly the same:
+  | i₁ == i₂ && p₁ == p₂ = branch p₁ i₁ $ Vector.zipWith merge cs₁ cs₂
+  -- branching on t₁:
+  | i₁ > i₂ && getPrefix s p₂ i₁ == p₁ = branch p₁ i₁ $ modify cs₁ (getChunk s p₂ i₁) (`merge` t₂)
+  -- branching on t₂:
+  | i₂ > i₁ && getPrefix s p₁ i₂ == p₂ = branch p₂ i₂ $ modify cs₂ (getChunk s p₁ i₂) (merge t₁)
+  -- prefixes don't overlap:
+  | otherwise = combine p₁ t₁ p₂ t₂
+  where s = span t₁
+
 -- Utility functions
 b :: Int -> IO ()
 b i = printf "%b\n" i
