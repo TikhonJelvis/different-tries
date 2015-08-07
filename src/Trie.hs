@@ -112,16 +112,19 @@ combine p₁ t₁ p₂ t₂ = branch prefix index newChildren
         prefix = getPrefix s p₁ index
         s = span t₁
 
-insert :: forall s a. (KnownNat s, Monoid a) => Int -> a -> Trie s a -> Trie s a
-insert k v Empty        = Leaf k v
-insert k v t@(Leaf k' v')
-  | k == k' = Leaf k (v <> v')
+insertWith :: forall s a. KnownNat s => (a -> a -> a) -> Int -> a -> Trie s a -> Trie s a
+insertWith (⊗) k v Empty        = Leaf k v
+insertWith (⊗) k v t@(Leaf k' v')
+  | k == k' = Leaf k (v ⊗ v')
   | otherwise = combine k (Leaf k v) k' (Leaf k' v')
-insert k v trie@(Branch prefix index children)
+insertWith (⊗) k v trie@(Branch prefix index children)
   | getPrefix s k index == prefix = branch prefix index newChildren
   | otherwise                    = combine k (Leaf k v) prefix trie
-   where newChildren = modify children (getChunk s k index) (insert k v)
+   where newChildren = modify children (getChunk s k index) (insertWith (⊗) k v)
          s = span trie
+
+insert :: forall s a. KnownNat s => Int -> a -> Trie s a -> Trie s a
+insert = insertWith const
 
 fromList :: (KnownNat s, Monoid a) => [(Int, a)] -> Trie s a
 fromList = foldr (\ (k, v) t -> insert k v t) Empty
@@ -136,21 +139,26 @@ keys (Leaf k _)            = [k]
 keys (Branch _ _ children) = Vector.toList children >>= keys
 
                          -- TODO: Figure out ordering in insert case
-merge :: KnownNat s => Monoid a => Trie s a -> Trie s a -> Trie s a
-merge Empty t      = t
-merge t Empty      = t
-merge (Leaf k v) t = insert k v t
-merge t (Leaf k v) = insert k v t
-merge t₁@(Branch p₁ i₁ cs₁) t₂@(Branch p₂ i₂ cs₂)
+mergeWith :: KnownNat s => (a -> a -> a) -> Trie s a -> Trie s a -> Trie s a
+mergeWith _ Empty t      = t
+mergeWith _ t Empty      = t
+mergeWith f (Leaf k v) t = insertWith f k v t
+mergeWith f t (Leaf k v) = insertWith f k v t
+mergeWith f t₁@(Branch p₁ i₁ cs₁) t₂@(Branch p₂ i₂ cs₂)
   -- prefixes exactly the same:
-  | i₁ == i₂ && p₁ == p₂ = branch p₁ i₁ $ Vector.zipWith merge cs₁ cs₂
+  | i₁ == i₂ && p₁ == p₂ = branch p₁ i₁ $ Vector.zipWith (mergeWith f) cs₁ cs₂
   -- branching on t₁:
-  | i₁ > i₂ && getPrefix s p₂ i₁ == p₁ = branch p₁ i₁ $ modify cs₁ (getChunk s p₂ i₁) (`merge` t₂)
+  | i₁ > i₂ && getPrefix s p₂ i₁ == p₁ = branch p₁ i₁ $
+      modify cs₁ (getChunk s p₂ i₁) (mergeWith (flip f) t₂)
   -- branching on t₂:
-  | i₂ > i₁ && getPrefix s p₁ i₂ == p₂ = branch p₂ i₂ $ modify cs₂ (getChunk s p₁ i₂) (merge t₁)
+  | i₂ > i₁ && getPrefix s p₁ i₂ == p₂ = branch p₂ i₂ $
+      modify cs₂ (getChunk s p₁ i₂) (mergeWith f t₁)
   -- prefixes don't overlap:
   | otherwise = combine p₁ t₁ p₂ t₂
   where s = span t₁
+
+merge :: KnownNat s => Trie s a -> Trie s a -> Trie s a
+merge = mergeWith const
 
 -- Utility functions
 b :: Int -> IO ()
