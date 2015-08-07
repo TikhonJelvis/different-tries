@@ -90,10 +90,16 @@ insert = insertWith const
 fromList :: Monoid a => [(Int, a)] -> Trie a
 fromList = foldr (\ (k, v) t -> insert k v t) Empty
 
+toList :: Trie a -> [(Int, a)]
+toList Empty            = []
+toList (Leaf k v)       = [(k, v)]
+toList (Branch _ _ l r) = toList l ++ toList r
+
 keys :: Trie a -> [Int]
-keys Empty = []
-keys (Leaf k _) = [k]
-keys (Branch _ _ l r) = keys l ++ keys r
+keys = map fst . toList
+
+values :: Trie a -> [a]
+values = map snd . toList
 
 mergeWith :: (a -> a -> a) -> Trie a -> Trie a -> Trie a
 mergeWith _ Empty t      = t
