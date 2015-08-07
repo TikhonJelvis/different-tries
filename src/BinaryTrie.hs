@@ -73,16 +73,19 @@ combine pl l pr r = checkBit pl control
   where control = highestBitSet (pl `xor` pr)
         prefix  = getPrefix pl control
 
-insert :: Monoid a => Int -> a -> Trie a -> Trie a
-insert k v Empty        = Leaf k v
-insert k v (Leaf k' v')
-  | k == k'    = Leaf k (v <> v')
+insertWith :: (a -> a -> a) -> Int -> a -> Trie a -> Trie a
+insertWith _ k v Empty        = Leaf k v
+insertWith (⊗) k v (Leaf k' v')
+  | k == k'    = Leaf k (v ⊗ v')
   | otherwise = combine k (Leaf k v) k' (Leaf k' v')
-insert k v trie@(Branch prefix control l r)
+insertWith (⊗) k v trie@(Branch prefix control l r)
   | getPrefix k control == prefix = checkBit k control
-                                   (branch prefix control (insert k v l) r)
-                                   (branch prefix control l (insert k v r))
+                                   (branch prefix control (insertWith (⊗) k v l) r)
+                                   (branch prefix control l (insertWith (⊗) k v r))
   | otherwise                    = combine k (Leaf k v) prefix trie
+
+insert :: Int -> a -> Trie a -> Trie a
+insert = insertWith const
 
 fromList :: Monoid a => [(Int, a)] -> Trie a
 fromList = foldr (\ (k, v) t -> insert k v t) Empty
@@ -92,20 +95,23 @@ keys Empty = []
 keys (Leaf k _) = [k]
 keys (Branch _ _ l r) = keys l ++ keys r
 
-merge :: Monoid a => Trie a -> Trie a -> Trie a
-merge Empty t      = t
-merge t Empty      = t
-merge (Leaf k v) t = insert k v t
-merge t (Leaf k v) = insert k v t
-merge t₁@(Branch p₁ c₁ l₁ r₁) t₂@(Branch p₂ c₂ l₂ r₂)
-  | p₁ == p₂ && c₁ == c₂ = branch p₁ c₁ (merge l₁ l₂) (merge r₁ r₂)
+mergeWith :: (a -> a -> a) -> Trie a -> Trie a -> Trie a
+mergeWith _ Empty t      = t
+mergeWith _ t Empty      = t
+mergeWith f (Leaf k v) t = insertWith f k v t
+mergeWith f t (Leaf k v) = insertWith (flip f) k v t
+mergeWith f t₁@(Branch p₁ c₁ l₁ r₁) t₂@(Branch p₂ c₂ l₂ r₂)
+  | p₁ == p₂ && c₁ == c₂ = branch p₁ c₁ (mergeWith f l₁ l₂) (mergeWith f r₁ r₂)
   | c₁ > c₂ && getPrefix p₂ c₁ == p₁ = checkBit p₂ c₁
-                                     (branch p₁ c₁ (merge l₁ t₂) r₁)
-                                     (branch p₁ c₁ l₁ (merge r₁ t₂))
+                                     (branch p₁ c₁ (mergeWith f l₁ t₂) r₁)
+                                     (branch p₁ c₁ l₁ (mergeWith f r₁ t₂))
   | c₂ > c₁ && getPrefix p₁ c₂ == p₂ = checkBit p₁ c₂
-                                     (branch p₂ c₂ (merge t₁ l₂) r₂)
-                                     (branch p₂ c₂ l₂ (merge t₁ r₂))
+                                     (branch p₂ c₂ (mergeWith f t₁ l₂) r₂)
+                                     (branch p₂ c₂ l₂ (mergeWith f t₁ r₂))
   | otherwise                      = combine p₁ t₁ p₂ t₂
+
+merge :: Trie a -> Trie a -> Trie a
+merge = mergeWith const
 
 delete :: Int -> Trie a -> Trie a
 delete k Empty = Empty
