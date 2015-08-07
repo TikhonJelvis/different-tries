@@ -133,10 +133,16 @@ fromList = foldr (\ (k, v) t -> insert k v t) Empty
 modify :: Vector a -> Int -> (a -> a) -> Vector a
 modify v i f = v // [(i, f $ v ! i)]
 
+toList :: KnownNat s => Trie s a -> [(Int, a)]
+toList Empty                 = []
+toList (Leaf k v)            = [(k, v)]
+toList (Branch _ _ children) = Vector.toList children >>= toList
+
 keys :: KnownNat s => Trie s a -> [Int]
-keys Empty                 = []
-keys (Leaf k _)            = [k]
-keys (Branch _ _ children) = Vector.toList children >>= keys
+keys = map fst . toList
+
+values :: KnownNat s => Trie s a -> [a]
+values = map snd . toList
 
                          -- TODO: Figure out ordering in insert case
 mergeWith :: KnownNat s => (a -> a -> a) -> Trie s a -> Trie s a -> Trie s a
