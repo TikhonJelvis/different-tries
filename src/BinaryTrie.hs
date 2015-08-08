@@ -1,28 +1,38 @@
+{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE MonadComprehensions #-}
 -- | A big-endian binary PATRICIA trie with fixed-size ints as keys.
 module BinaryTrie where
 
-import           Prelude   hiding (lookup)
+import           Prelude         hiding (lookup)
+
+import           Control.DeepSeq (NFData (..))
 
 import           Data.Bits
+import qualified Data.List       as List
 import           Data.Monoid
 
 import           Text.Printf
 
 -- | A PATRICIA trie that inspects an @Int@ key bit by bit.
 data Trie a = Empty
-            | Leaf !Int a
+            | Leaf {-# UNPACK #-} !Int a
               -- ^ Each leaf stores the whole key along with the value
               -- for that key.
-            | Branch !Int !Int (Trie a) (Trie a) deriving (Eq, Ord)
+            | Branch {-# UNPACK #-} !Int {-# UNPACK #-} !Int !(Trie a) !(Trie a)
               -- ^ Each branch stores a prefix and a control bit for
               -- the bit it branched on—an @Int@ with just that bit
               -- set.
+            deriving (Eq, Ord)
 
 instance Show a => Show (Trie a) where
   show Empty                       = "Empty"
   show (Leaf k v)                  = printf "Leaf %d %s" k (show v)
   show (Branch prefix control l r) = printf "(Branch %b %b %s %s)" prefix control (show l) (show r)
+
+instance NFData (Trie a) where
+  rnf Empty        = ()
+  rnf (Leaf !k !v) = ()
+  rnf (Branch !_ !_ l r) = rnf l `seq` rnf r `seq` ()
 
 width :: Int
 width = finiteBitSize (0 :: Int)
@@ -48,7 +58,14 @@ countLeadingZeros n = (width - 1) - go (width - 1)
              | otherwise   = go (i - 1)
 
 highestBitSet :: Int -> Int
-highestBitSet n = bit $ width - countLeadingZeros n - 1
+highestBitSet n =
+  case (n .|. shiftR n 1) of
+    n -> case (n .|. shiftR n 2) of
+      n -> case (n .|. shiftR n 4) of
+        n -> case (n .|. shiftR n 8) of
+          n -> case (n .|. shiftR n 16) of
+            n -> case (n .|. shiftR n 32) of   -- for 64 bit platforms
+              n -> (n `xor` (shiftR n 1))
 
 -- | Branches on whether the bit of the key at the given control bit
 -- is 0 (left) or 1 (right).
@@ -87,8 +104,8 @@ insertWith (⊗) k v trie@(Branch prefix control l r)
 insert :: Int -> a -> Trie a -> Trie a
 insert = insertWith const
 
-fromList :: Monoid a => [(Int, a)] -> Trie a
-fromList = foldr (\ (k, v) t -> insert k v t) Empty
+fromList :: [(Int, a)] -> Trie a
+fromList = List.foldl' (\ t (k, v) -> insert k v t) Empty
 
 toList :: Trie a -> [(Int, a)]
 toList Empty            = []
