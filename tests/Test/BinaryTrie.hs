@@ -10,9 +10,19 @@ import           Control.Applicative ((<$>))
 import qualified Data.List           as List
 
 import           Test.QuickCheck
+import           Test.Tasty
+import qualified Test.Tasty.QuickCheck as QC
 
 instance Arbitrary (Trie Int) where
   arbitrary = BinaryTrie.fromList <$> arbitrary
+
+tests :: [TestTree]
+tests = [
+  QC.testProperty "to-from list" prop_to_from_list,
+  QC.testProperty "insert-lookup" prop_insert_lookup,
+  QC.testProperty "insert-insert" prop_insert_insert,
+  QC.testProperty "merge" prop_merge
+  ]
 
   -- TODO: Figure out what to do with negative keys!
 prop_to_from_list ks' vs = BinaryTrie.toList trie == zip ks vs
