@@ -57,6 +57,7 @@ countLeadingZeros n = (width - 1) - go (width - 1)
              | testBit n i = i
              | otherwise   = go (i - 1)
 
+-- Borrowed from Haskell's Data.IntMap
 highestBitSet :: Int -> Int
 highestBitSet n =
   case (n .|. shiftR n 1) of
@@ -71,6 +72,7 @@ highestBitSet n =
 -- is 0 (left) or 1 (right).
 checkBit :: Int -> Int -> a -> a -> a
 checkBit k control left right = if k .&. control == 0 then left else right
+{-# INLINE checkBit #-}
 
 -- | We look a value up by branching based on bits. If we ever hit a
 -- leaf node, we check whether our whole key matches. If we ever hit

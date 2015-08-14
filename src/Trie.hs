@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns               #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures             #-}
@@ -8,15 +9,17 @@ module Trie where
 
 import           Prelude      hiding (lookup, span)
 
+import           Control.DeepSeq (NFData (..))
+
 import           Data.Bits
 import           Data.List    (foldl')
 import           Data.Monoid  (Monoid, (<>))
 import           Data.Proxy   (Proxy (..))
-import           Data.Vector  (Vector, (!), (//))
+import           Data.Vector  (Vector, unsafeIndex)
 import qualified Data.Vector  as Vector
 import           Data.Word    (Word64)
 
-import GHC.TypeLits
+import           GHC.TypeLits
 
 import           Text.Printf (printf)
 
@@ -36,6 +39,11 @@ instance Show a => Show (Trie s a) where
   show (Leaf k v)                     = printf "Leaf %d %s" k (show v)
   show (Branch prefix index children) = printf "Branch 0b%b %d %s" prefix index (show children)
 
+instance NFData (Trie s a) where
+  rnf Empty        = ()
+  rnf (Leaf !k !v) = ()
+  rnf (Branch !_ !_ children) = rnf children `seq` ()
+
 isEmpty :: Trie s a -> Bool
 isEmpty Empty = True
 isEmpty _     = False
@@ -47,6 +55,7 @@ isLeaf _      = False
 -- | Get the span of a tree from its type. (The given argument is discarded!)
 span :: forall s a. KnownNat s => Trie s a -> Int
 span _ = fromInteger $ natVal (Proxy :: Proxy s)
+{-# INLINE span #-}
 
 width :: Int
 width = finiteBitSize (0 :: Int)
@@ -66,39 +75,34 @@ getPrefix span key index = key .&. ((- 1) `shiftL` index)
 getChunk :: Int -> Int -> Int -> Int
 getChunk span key index = (key `shiftR` (index - span)) .&. (bit span - 1)
 
+                          -- TODO: one pass with Vector.foldl'?
 -- | A "smart constructor" that consolidates paths that either end or
 -- don't branch (ie have exactly one child leaf).
 branch :: Int -> Int -> Vector (Trie s a) -> Trie s a
-branch prefix index children
-  | Vector.all isEmpty children = Empty
-  | [leaf] <- oneLeaf            = leaf
-  | otherwise                   = Branch prefix index children
-  where oneLeaf = [leaf |
-                   Vector.length filtered == 1,
-                   let leaf = Vector.unsafeHead filtered,
-                   isLeaf leaf]
-        filtered = Vector.filter (not . isEmpty) children
+branch prefix index children = case Vector.foldl' go (Just Empty) children of
+  Just x  -> x
+  Nothing -> Branch prefix index children
+  where go (Just Empty) x = Just x
+        go x Empty        = x
+        go _ _            = Nothing
+{-# INLINE branch #-}
 
 -- | A vector of size 2^s filled with 'Empty' tries.
 empties :: forall s a. KnownNat s => Vector (Trie s a)
 empties = Vector.replicate (2 ^ span (undefined :: Trie s a)) Empty
+{-# INLINE empties #-}
 
-                               -- TODO: Replace with efficient version with 7.10
-countLeadingZeros :: Int -> Int
-countLeadingZeros n = (width - 1) - go (width - 1)
-  where go i | i < 0       = i
-             | testBit n i = i
-             | otherwise   = go (i - 1)
-
-highestBitSet :: Int -> Int
-highestBitSet n = bit $ width - countLeadingZeros n - 1
+                               -- TODO: Replace with library call in 7.10?
+countTrailingZeros :: Int -> Int
+countTrailingZeros n = popCount $ lsb - 1
+  where lsb = n .&. (- n)
 
 lookup :: KnownNat s => Int -> Trie s a -> Maybe a
 lookup _ Empty       = Nothing
 lookup k (Leaf k' v) = [v | k == k']
 lookup k t@(Branch prefix index children)
   | getPrefix (span t) k index /= prefix = Nothing
-  | otherwise                           = lookup k (children ! chunk)
+  | otherwise                           = lookup k (children `unsafeIndex` chunk)
   where chunk = getChunk (span t) k index
 
 -- | A helper function that combines two trees with two *different*,
@@ -106,8 +110,8 @@ lookup k t@(Branch prefix index children)
 -- before using this function!
 combine :: KnownNat s => Int -> Trie s a -> Int -> Trie s a -> Trie s a
 combine p₁ t₁ p₂ t₂ = branch prefix index newChildren
-  where newChildren = empties // [(getChunk s p₁ index, t₁), (getChunk s p₂ index, t₂)]
-        index = s + round (width - countLeadingZeros (p₁ `xor` p₂) - 1)
+  where newChildren = Vector.unsafeUpd empties [(getChunk s p₁ index, t₁), (getChunk s p₂ index, t₂)]
+        index = s + round (countTrailingZeros (p₁ `xor` p₂))
         round x = x `div` s * s
         prefix = getPrefix s p₁ index
         s = span t₁
@@ -126,12 +130,12 @@ insertWith (⊗) k v trie@(Branch prefix index children)
 insert :: forall s a. KnownNat s => Int -> a -> Trie s a -> Trie s a
 insert = insertWith const
 
-fromList :: (KnownNat s, Monoid a) => [(Int, a)] -> Trie s a
+fromList :: KnownNat s => [(Int, a)] -> Trie s a
 fromList = foldr (\ (k, v) t -> insert k v t) Empty
 
       -- TODO: figure out how to do this properly?
 modify :: Vector a -> Int -> (a -> a) -> Vector a
-modify v i f = v // [(i, f $ v ! i)]
+modify v i f = Vector.unsafeUpd v [(i, f $ v `unsafeIndex` i)]
 
 toList :: KnownNat s => Trie s a -> [(Int, a)]
 toList Empty                 = []
