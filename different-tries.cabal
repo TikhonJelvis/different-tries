@@ -50,7 +50,7 @@ test-suite test
 
   hs-source-dirs:      tests
   main-is:             tests.hs
-  other-modules:       Test.BinaryTrie
+  other-modules:       Test.BinaryTrie, Test.Trie
 
   build-depends:       base >=4.7 && <4.8,
                        different-tries,

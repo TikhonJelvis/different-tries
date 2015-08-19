@@ -110,9 +110,23 @@ lookup k t@(Branch prefix index children)
 -- before using this function!
 combine :: KnownNat s => Int -> Trie s a -> Int -> Trie s a -> Trie s a
 combine p₁ t₁ p₂ t₂ = branch prefix index newChildren
-  where newChildren = Vector.unsafeUpd empties [(getChunk s p₁ index, t₁), (getChunk s p₂ index, t₂)]
-        index = s + round (countTrailingZeros (p₁ `xor` p₂))
-        round x = x `div` s * s
+  where newChildren = Vector.generate s go
+          where go x | x == getChunk s p₁ index = t₁
+                     | x == getChunk s p₂ index = t₂
+                     | otherwise               = Empty
+        index = getIndex s $ p₁ `xor` p₂
+        prefix = getPrefix s p₁ index
+        s = span t₁
+
+-- | A faster version of combine that does not collapse lone Empty and
+-- Leaf nodes.
+combine' :: KnownNat s => Int -> Trie s a -> Int -> Trie s a -> Trie s a
+combine' p₁ t₁ p₂ t₂ = Branch prefix index newChildren
+  where newChildren = Vector.generate s go
+          where go x | x == getChunk s p₁ index = t₁
+                     | x == getChunk s p₂ index = t₂
+                     | otherwise               = Empty
+        index = getIndex s $ p₁ `xor` p₂
         prefix = getPrefix s p₁ index
         s = span t₁
 
