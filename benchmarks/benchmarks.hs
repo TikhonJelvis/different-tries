@@ -18,18 +18,18 @@ import           Criterion.Main
 
 main = defaultMain [
   env values $ \ values ->
-    -- bgroup "Creating 0..100000" [
-    --     bench "IntMap" $ nf IntMap.fromList values,
-    --     bench "BinaryTrie" $ nf Binary.fromList values,
-    --     bench "Trie 1" $ nf trie1 values,
-    --     bench "Trie 2" $ nf trie2 values,
-    --     bench "Trie 3" $ nf trie3 values,
-    --     bench "Trie 4" $ nf trie4 values,
-    --     bench "Trie 5" $ nf trie5 values,
-    --     bench "Trie 6" $ nf trie6 values,
-    --     bench "Trie 7" $ nf trie7 values,
-    --     bench "Trie 8" $ nf trie8 values
-    -- ]
+    bgroup "Creating 0..100000" [
+        bench "IntMap" $ nf IntMap.fromList values,
+        bench "BinaryTrie" $ nf Binary.fromList values,
+        bench "Trie 1" $ nf trie1 values,
+        bench "Trie 2" $ nf trie2 values,
+        bench "Trie 3" $ nf trie3 values,
+        bench "Trie 4" $ nf trie4 values,
+        bench "Trie 5" $ nf trie5 values,
+        bench "Trie 6" $ nf trie6 values,
+        bench "Trie 7" $ nf trie7 values,
+        bench "Trie 8" $ nf trie8 values
+    ]
     -- ,
     -- bgroup "branch" [
     --     bench "BinaryTrie" $ nf (Binary.branch bPrefix bControl bLeaf1) bLeaf2,
@@ -45,12 +45,12 @@ main = defaultMain [
     --     bench "Trie 7" $ nf trieTest 7,
     --     bench "Trie 8" $ nf trieTest 8
     -- ]-- ,
-    bgroup "combine" [
-        bench "BinaryTrie" $ nf (Binary.combine' k1 bLeaf1 k2) bLeaf2,
-        bench "Trie 1" $ nf (Trie.combine' k1 t1Leaf1 k2) t1Leaf2,
-        bench "Trie 2" $ nf (Trie.combine' k1 t2Leaf1 k2) t2Leaf2,
-        bench "Trie 8" $ nf (Trie.combine' k1 t8Leaf1 k2) t8Leaf2
-    ]
+    -- bgroup "combine" [
+    --     bench "BinaryTrie" $ nf (Binary.combine' k1 bLeaf1 k2) bLeaf2,
+    --     bench "Trie 1" $ nf (Trie.combine' k1 t1Leaf1 k2) t1Leaf2,
+    --     bench "Trie 2" $ nf (Trie.combine' k1 t2Leaf1 k2) t2Leaf2,
+    --     bench "Trie 8" $ nf (Trie.combine' k1 t8Leaf1 k2) t8Leaf2
+    -- ]
   ]
   where values :: IO [(Int, Int)]
         values = return $ let xs = [0..100000] in zip xs xs
@@ -77,7 +77,7 @@ main = defaultMain [
 
         index2 = 2 + ((Trie.countTrailingNonZeros (k1 `xor` k2)) `div` 2 * 2)
         children2 = Vector.fromList [t2Leaf1, t2Leaf2]
-        prefix2 = Trie.getPrefix 2 k1 index2
+        prefix2 = Trie.getPrefix k1 index2
 
         bLeaf1 = Binary.Leaf k1 "abc"
         bLeaf2 = Binary.Leaf k2 "def"

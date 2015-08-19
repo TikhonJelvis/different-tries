@@ -67,8 +67,8 @@ width = finiteBitSize (0 :: Int)
 -- @
 -- getPrefix 3 0b111111111 6 = 0b111000000
 -- @
-getPrefix :: Int -> Int -> Int -> Int
-getPrefix span key index = key .&. ((- 1) `shiftL` index)
+getPrefix :: Int -> Int -> Int
+getPrefix key index = key .&. ((- 1) `shiftL` index)
 
 -- | Get the chunk of the key for the given bit index, shifted all the
 -- way right.
@@ -107,7 +107,7 @@ lookup :: KnownNat s => Int -> Trie s a -> Maybe a
 lookup _ Empty       = Nothing
 lookup k (Leaf k' v) = [v | k == k']
 lookup k t@(Branch prefix index children)
-  | getPrefix (span t) k index /= prefix = Nothing
+  | getPrefix k index /= prefix = Nothing
   | otherwise                           = lookup k (children `unsafeIndex` chunk)
   where chunk = getChunk (span t) k index
 
@@ -121,28 +121,27 @@ combine p₁ t₁ p₂ t₂ = branch prefix index newChildren
                      | x == getChunk s p₂ index = t₂
                      | otherwise               = Empty
         index = getIndex s $ p₁ `xor` p₂
-        prefix = getPrefix s p₁ index
+        prefix = getPrefix p₁ index
         s = span t₁
 
 -- | A faster version of combine that does not collapse lone Empty and
 -- Leaf nodes.
 combine' :: KnownNat s => Int -> Trie s a -> Int -> Trie s a -> Trie s a
 combine' p₁ t₁ p₂ t₂ = Branch prefix index newChildren
-  where newChildren = Vector.generate s go
-          where go x | x == getChunk s p₁ index = t₁
-                     | x == getChunk s p₂ index = t₂
-                     | otherwise               = Empty
+  where newChildren = Vector.unsafeUpd empties [(getChunk s p₁ index, t₁), 
+                                                (getChunk s p₂ index, t₂)]
+        empties = Vector.replicate (2^s) Empty
         index = getIndex s $ p₁ `xor` p₂
-        prefix = getPrefix s p₁ index
+        prefix = getPrefix p₁ index
         s = span t₁
 
 insertWith :: forall s a. KnownNat s => (a -> a -> a) -> Int -> a -> Trie s a -> Trie s a
-insertWith (⊗) k v Empty        = Leaf k v
-insertWith (⊗) k v t@(Leaf k' v')
+insertWith (⊗) !k v Empty        = Leaf k v
+insertWith (⊗) !k v t@(Leaf k' v')
   | k == k' = Leaf k (v ⊗ v')
   | otherwise = combine k (Leaf k v) k' (Leaf k' v')
-insertWith (⊗) k v trie@(Branch prefix index children)
-  | getPrefix s k index == prefix = branch prefix index newChildren
+insertWith (⊗) !k v trie@(Branch prefix index children)
+  | getPrefix k index == prefix = branch prefix index newChildren
   | otherwise                    = combine k (Leaf k v) prefix trie
    where newChildren = modify children (getChunk s k index) (insertWith (⊗) k v)
          s = span trie
@@ -178,10 +177,10 @@ mergeWith f t₁@(Branch p₁ i₁ cs₁) t₂@(Branch p₂ i₂ cs₂)
   -- prefixes exactly the same:
   | i₁ == i₂ && p₁ == p₂ = branch p₁ i₁ $ Vector.zipWith (mergeWith f) cs₁ cs₂
   -- branching on t₁:
-  | i₁ > i₂ && getPrefix s p₂ i₁ == p₁ = branch p₁ i₁ $
+  | i₁ > i₂ && getPrefix p₂ i₁ == p₁ = branch p₁ i₁ $
       modify cs₁ (getChunk s p₂ i₁) (mergeWith (flip f) t₂)
   -- branching on t₂:
-  | i₂ > i₁ && getPrefix s p₁ i₂ == p₂ = branch p₂ i₂ $
+  | i₂ > i₁ && getPrefix p₁ i₂ == p₂ = branch p₂ i₂ $
       modify cs₂ (getChunk s p₁ i₂) (mergeWith f t₁)
   -- prefixes don't overlap:
   | otherwise = combine p₁ t₁ p₂ t₂
