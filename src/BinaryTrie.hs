@@ -92,16 +92,24 @@ combine pl l pr r = checkBit pl control
   where control = highestBitSet (pl `xor` pr)
         prefix  = getPrefix pl control
 
+-- | Combines two trees *without* collapsing Leaf or Empty nodes.
+combine' :: Int -> Trie a -> Int -> Trie a -> Trie a
+combine' pl l pr r = checkBit pl control
+                     (Branch prefix control l r)
+                     (Branch prefix control r l)
+  where control = highestBitSet (pl `xor` pr)
+        prefix  = getPrefix pl control
+
 insertWith :: (a -> a -> a) -> Int -> a -> Trie a -> Trie a
-insertWith _ k v Empty        = Leaf k v
-insertWith (⊗) k v (Leaf k' v')
+insertWith _ !k v Empty        = Leaf k v
+insertWith (⊗) !k v (Leaf k' v')
   | k == k'    = Leaf k (v ⊗ v')
-  | otherwise = combine k (Leaf k v) k' (Leaf k' v')
+  | otherwise = combine' k (Leaf k v) k' (Leaf k' v')
 insertWith (⊗) k v trie@(Branch prefix control l r)
   | getPrefix k control == prefix = checkBit k control
-                                   (branch prefix control (insertWith (⊗) k v l) r)
-                                   (branch prefix control l (insertWith (⊗) k v r))
-  | otherwise                    = combine k (Leaf k v) prefix trie
+                                   (Branch prefix control (insertWith (⊗) k v l) r)
+                                   (Branch prefix control l (insertWith (⊗) k v r))
+  | otherwise                    = combine' k (Leaf k v) prefix trie
 
 insert :: Int -> a -> Trie a -> Trie a
 insert = insertWith const

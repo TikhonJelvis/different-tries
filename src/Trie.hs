@@ -9,7 +9,7 @@ module Trie where
 
 import           Prelude      hiding (lookup, span)
 
-import           Control.DeepSeq (NFData (..))
+import           Control.DeepSeq (NFData (..), deepseq)
 
 import           Data.Bits
 import           Data.List    (foldl')
@@ -87,15 +87,21 @@ branch prefix index children = case Vector.foldl' go (Just Empty) children of
         go _ _            = Nothing
 {-# INLINE branch #-}
 
--- | A vector of size 2^s filled with 'Empty' tries.
-empties :: forall s a. KnownNat s => Vector (Trie s a)
-empties = Vector.replicate (2 ^ span (undefined :: Trie s a)) Empty
-{-# INLINE empties #-}
+countTrailingNonZeros :: Int -> Int
+countTrailingNonZeros n =   case (n .|. shiftR n 1) of
+    n -> case (n .|. shiftR n 2) of
+      n -> case (n .|. shiftR n 4) of
+        n -> case (n .|. shiftR n 8) of
+          n -> case (n .|. shiftR n 16) of
+            n -> case (n .|. shiftR n 32) of   -- for 64 bit platforms
+              n -> popCount n
 
-                               -- TODO: Replace with library call in 7.10?
-countTrailingZeros :: Int -> Int
-countTrailingZeros n = popCount $ lsb - 1
-  where lsb = n .&. (- n)
+-- | Gets the index on which a tree of span s branches on the given key.
+-- The key has to be positive!
+getIndex :: Int -> Int -> Int
+getIndex s x = let n = countTrailingNonZeros x - 1 in n + s - (n `rem` s)
+
+                              -- TODO: Replace with efficient version with 7.10
 
 lookup :: KnownNat s => Int -> Trie s a -> Maybe a
 lookup _ Empty       = Nothing
