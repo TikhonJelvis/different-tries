@@ -16,13 +16,15 @@ extra-source-files:  README.md
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     BinaryTrie, Trie
+  exposed-modules:     Trie.Binary, Trie.Vector, Trie.Array
   -- other-modules:       
   -- other-extensions:    
-  build-depends:       base >=4.7 && <4.8,
-                       ghc-prim >= 0.3.1 && < 0.4,
-                       deepseq >=1.3 && <1.4,
-                       vector >=0.10 && <0.11
+  build-depends:       base
+                     , array
+                     , containers
+                     , deepseq
+                     , ghc-prim
+                     , vector
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -O2
@@ -35,14 +37,14 @@ benchmark benchmarks
   main-is:             benchmarks.hs
   ghc-options:         -O2
 
-  build-depends:       base >=4.7 && <4.8,
-                       different-tries,
-                       deepseq >=1.3 && <1.4,
-                       vector >=0.10 && <0.11,
+  build-depends:       base
+                     , different-tries
+                     , deepseq
+                     , vector
 
-                       containers >=0.5 && <0.6,
-                       random >=1.0 && <2,
-                       criterion >=1.1 && <1.2
+                     , containers
+                     , random
+                     , criterion
 
 test-suite test
   type:                exitcode-stdio-1.0
@@ -50,14 +52,14 @@ test-suite test
 
   hs-source-dirs:      tests
   main-is:             tests.hs
-  other-modules:       Test.BinaryTrie, Test.Trie
+  other-modules:       Test.Binary, Test.Vector
 
-  build-depends:       base >=4.7 && <4.8,
-                       different-tries,
+  build-depends:       base
+                     , different-tries
 
-                       tasty >=0.10,
-                       tasty-quickcheck >=0.8 && <0.9,
-                       HUnit >=1.2 && <1.3,
-                       QuickCheck >=2.8 && <2.9,
+                     , tasty
+                     , tasty-quickcheck
+                     , HUnit
+                     , QuickCheck
 
-                       criterion >=1.1 && <1.2
+                     , criterion

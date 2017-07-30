@@ -1,17 +1,17 @@
 module Main where
 
-import qualified Test.BinaryTrie as BinaryTrie
-import qualified Test.Trie       as Trie
+import qualified Test.Binary as Binary
+import qualified Test.Vector as Vector
 
 import           Test.Tasty
 
 main = defaultMain tests
 
 tests :: TestTree
-tests = testGroup "Test" [binaryTrie, trie]
+tests = testGroup "Test" [binaryTrie]
 
 binaryTrie :: TestTree
-binaryTrie = testGroup "BinaryTrie" BinaryTrie.tests
+binaryTrie = testGroup "Binary Trie" Binary.tests
 
-trie :: TestTree
-trie = testGroup "Trie" Trie.tests
+vector :: TestTree
+vector = testGroup "Trie" Vector.tests

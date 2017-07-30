@@ -1,7 +1,8 @@
 {-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE MonadComprehensions #-}
+
 -- | A big-endian binary PATRICIA trie with fixed-size ints as keys.
-module BinaryTrie where
+module Trie.Binary where
 
 import           Prelude         hiding (lookup)
 
@@ -49,13 +50,6 @@ branch _ _ Empty Empty      = Empty
 branch _ _ Empty (Leaf k v) = Leaf k v
 branch _ _ (Leaf k v) Empty = Leaf k v
 branch prefix control l r   = Branch prefix control l r
-
-                              -- TODO: Replace with efficient version with 7.10
-countLeadingZeros :: Int -> Int
-countLeadingZeros n = (width - 1) - go (width - 1)
-  where go i | i < 0       = i
-             | testBit n i = i
-             | otherwise   = go (i - 1)
 
 -- Borrowed from Haskell's Data.IntMap
 highestBitSet :: Int -> Int

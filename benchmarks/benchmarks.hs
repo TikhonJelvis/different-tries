@@ -1,89 +1,95 @@
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE BangPatterns     #-}
+{-# LANGUAGE DataKinds        #-}
+{-# LANGUAGE OverloadedLists  #-}
+{-# LANGUAGE TypeApplications #-}
 module Main where
 
-import qualified BinaryTrie          as Binary
-import           Trie                (Trie)
-import qualified Trie                as Trie
-
 import           Control.Applicative ((<$>), (<*>))
+import           Control.Monad       (replicateM)
+
+import           Criterion.Main
 
 import           Data.Bits           (bit, xor)
 import           Data.IntMap         (IntMap)
 import qualified Data.IntMap         as IntMap
-import           Data.Vector         (Vector, (//))
-import qualified Data.Vector         as Vector
+import           Data.Vector         (Vector)
 
-import           Criterion.Main
+import           System.Random       (randomIO)
 
+import qualified Trie.Array          as Array
+import qualified Trie.Binary         as Binary
+import qualified Trie.Vector         as Vector
 
+main :: IO ()
 main = defaultMain [
-  env values $ \ values ->
-    bgroup "Creating 0..100000" [
-        bench "IntMap" $ nf IntMap.fromList values,
-        bench "BinaryTrie" $ nf Binary.fromList values,
-        bench "Trie 1" $ nf trie1 values,
-        bench "Trie 2" $ nf trie2 values,
-        bench "Trie 3" $ nf trie3 values,
-        bench "Trie 4" $ nf trie4 values,
-        bench "Trie 5" $ nf trie5 values,
-        bench "Trie 6" $ nf trie6 values,
-        bench "Trie 7" $ nf trie7 values,
-        bench "Trie 8" $ nf trie8 values
+  env inputs $ \ ~( values
+                  , intmap
+                  , vtrie1
+                  , vtrie2
+                  , vtrie3
+                  , atrie1
+                  , atrie2
+                  , key
+                  ) ->
+      bgroup "Creating and Inserting" [
+        -- bgroup "Creating 0..100000" [
+        --     bench "IntMap"        $ nf IntMap.fromList values,
+        --     -- bench "Binary Trie"   $ nf Binary.fromList values,
+        --     bench "Vector Trie 1" $ nf (Vector.fromList @1) values,
+        --     bench "Vector Trie 2" $ nf (Vector.fromList @2) values,
+        --     bench "Array Trie 1"  $ nf (Array.fromList @1) values,
+        --     bench "Array Trie 2"  $ nf (Array.fromList @2) values
+
+        --     -- bench "Vector Trie 3" $ nf (Vector.fromList @3) values,
+        --     -- bench "Vector Trie 4" $ nf (Vector.fromList @4) values,
+        --     -- bench "Vector Trie 5" $ nf (Vector.fromList @5) values,
+        --     -- bench "Vector Trie 6" $ nf (Vector.fromList @6) values,
+        --     -- bench "Vector Trie 7" $ nf (Vector.fromList @7) values,
+        --     -- bench "Vector Trie 8" $ nf (Vector.fromList @8) values
+        -- ],
+        bgroup "Inserting into 1000000 trie" [
+            bench "IntMap" $ nf (IntMap.insert key 101) intmap,
+            bench "Vector Trie 1" $ nf (Vector.insert key 101) vtrie1,
+            bench "Vector Trie 2" $ nf (Vector.insert key 101) vtrie2,
+            bench "Array Trie 1" $ nf (Array.insert key 101) atrie1,
+            bench "Array Trie 2" $ nf (Array.insert key 101) atrie2
+        ]
     ]
-    -- ,
-    -- bgroup "branch" [
-    --     bench "BinaryTrie" $ nf (Binary.branch bPrefix bControl bLeaf1) bLeaf2,
-    --     bench "Trie 2" $ nf (Trie.branch prefix2 index2 :: Vector (Trie 2 String) -> Trie 2 String) children2
-    -- ],
-    -- bgroup "findIndex" [
-    --     bench "BinaryTrie" $ nf Binary.highestBitSet (k1 `xor` k2),
-    --     bench "Trie 2" $ nf trieTest 2,
-    --     bench "Trie 3" $ nf trieTest 3,
-    --     bench "Trie 4" $ nf trieTest 4,
-    --     bench "Trie 5" $ nf trieTest 5,
-    --     bench "Trie 6" $ nf trieTest 6,
-    --     bench "Trie 7" $ nf trieTest 7,
-    --     bench "Trie 8" $ nf trieTest 8
-    -- ]-- ,
-    -- bgroup "combine" [
-    --     bench "BinaryTrie" $ nf (Binary.combine' k1 bLeaf1 k2) bLeaf2,
-    --     bench "Trie 1" $ nf (Trie.combine' k1 t1Leaf1 k2) t1Leaf2,
-    --     bench "Trie 2" $ nf (Trie.combine' k1 t2Leaf1 k2) t2Leaf2,
-    --     bench "Trie 8" $ nf (Trie.combine' k1 t8Leaf1 k2) t8Leaf2
-    -- ]
   ]
-  where values :: IO [(Int, Int)]
-        values = return $ let xs = [0..100000] in zip xs xs
-
-        trie1 = Trie.fromList :: [(Int, Int)] -> Trie 1 Int
-        trie2 = Trie.fromList :: [(Int, Int)] -> Trie 2 Int
-        trie3 = Trie.fromList :: [(Int, Int)] -> Trie 3 Int
-        trie4 = Trie.fromList :: [(Int, Int)] -> Trie 4 Int
-        trie5 = Trie.fromList :: [(Int, Int)] -> Trie 5 Int
-        trie6 = Trie.fromList :: [(Int, Int)] -> Trie 6 Int
-        trie7 = Trie.fromList :: [(Int, Int)] -> Trie 7 Int
-        trie8 = Trie.fromList :: [(Int, Int)] -> Trie 8 Int
-
+  where inputs = do
+          xs <- replicateM 500000 randomIO
+          key <- randomIO
+          let pairs = xs `zip` xs
+          return ( pairs
+                 , IntMap.fromList pairs
+                 , Vector.fromList @1 pairs
+                 , Vector.fromList @2 pairs
+                 , Vector.fromList @3 pairs
+                 , Array.fromList @1 pairs
+                 , Array.fromList @2 pairs
+                 , key
+                 )
+        
         -- An arbitrary pair of keys that has to branch relatively
         -- high with some prefix.
         k1 = 0xDEAAEFC28
         k2 = 0xDEAFEFC28
 
-        trieTest s = s + (Trie.countTrailingNonZeros (k1 `xor` k2) - 1)
+        trieTest s = s + (Vector.countTrailingNonZeros (k1 `xor` k2) - 1)
           where round x = x `div` s * s
 
         bControl = Binary.highestBitSet (k1 `xor` k2)
         bPrefix = Binary.getPrefix k1 bControl
 
-        index2 = 2 + ((Trie.countTrailingNonZeros (k1 `xor` k2)) `div` 2 * 2)
-        children2 = Vector.fromList [t2Leaf1, t2Leaf2]
-        prefix2 = Trie.getPrefix k1 index2
+        index2 = 2 + ((Vector.countTrailingNonZeros (k1 `xor` k2)) `div` 2 * 2)
+        children2 = [t2Leaf1, t2Leaf2] :: Vector (Vector.Trie 2 String)
+        prefix2 = Vector.getPrefix k1 index2
 
         bLeaf1 = Binary.Leaf k1 "abc"
         bLeaf2 = Binary.Leaf k2 "def"
-        t1Leaf1 = Trie.Leaf k1 "abc" :: Trie 1 String
-        t1Leaf2 = Trie.Leaf k2 "def" :: Trie 1 String
-        t2Leaf1 = Trie.Leaf k1 "abc" :: Trie 2 String
-        t2Leaf2 = Trie.Leaf k2 "def" :: Trie 2 String
-        t8Leaf1 = Trie.Leaf k1 "abc" :: Trie 8 String
-        t8Leaf2 = Trie.Leaf k2 "abc" :: Trie 8 String
+        t1Leaf1 = Vector.Leaf @1 k1 "abc"
+        t1Leaf2 = Vector.Leaf @1 k2 "def"
+        t2Leaf1 = Vector.Leaf @2 k1 "abc"
+        t2Leaf2 = Vector.Leaf @2 k2 "def"
+        t8Leaf1 = Vector.Leaf @8 k1 "abc"
+        t8Leaf2 = Vector.Leaf @8 k2 "abc"

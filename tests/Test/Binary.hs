@@ -1,13 +1,13 @@
 {-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Test.BinaryTrie where
+module Test.Binary where
 
-import           BinaryTrie          (Trie)
-import qualified BinaryTrie
+import           Trie.Binary           (Trie)
+import qualified Trie.Binary           as BinaryTrie
 
-import           Control.Applicative ((<$>))
+import           Control.Applicative   ((<$>))
 
-import qualified Data.List           as List
+import qualified Data.List             as List
 
 import           Test.QuickCheck
 import           Test.Tasty
